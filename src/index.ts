@@ -59,7 +59,7 @@ class Application {
         this.app.register(notificationRoutes, { prefix: "api/v1/notifications" });
         this.app.register(aiRoutes, { prefix: "api/v1/ai" });
         this.app.register(websocket);
-        this.app.register(socialWsRoutes, { prefix:"ws" });
+        this.app.register(socialWsRoutes, { prefix: "ws" });
         this.app.register(handleWebhook, { prefix: "api/v1/webhook" });
     }
     async startHttpServer() {
@@ -81,5 +81,8 @@ class Application {
     }
 }
 
+/**
+ * * Test CI/CD Pipeline
+ */
 const application = new Application();
 application.start();
