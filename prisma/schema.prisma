@@ -1,0 +1,323 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- ENUMS ---
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum AnimeType {
+  TV
+  MOVIE
+  OVA
+}
+
+enum AnimeStatus {
+  AIRING
+  FINISHED
+}
+
+enum WatchlistStatus {
+  WATCHING
+  COMPLETED
+  DROPPED
+  PLAN_TO_WATCH
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+// --- IDENTITY & SECURITY ---
+  
+model User {
+  id                String         @id @default(uuid())
+  clerkId           String?        @unique
+  username          String         @unique
+  email             String         @unique
+  passwordHash      String?
+  role              Role           @default(USER)
+  avatar            String?
+  bio               String?
+
+  twoFactorEnabled  Boolean        @default(false)
+  twoFactorSecret   String?
+  createdAt         DateTime       @default(now())
+
+  sessions          Session[]
+  accounts          OAuthAccount[]
+  subscription      Subscription?
+
+  posts             Post[]
+  stories           Story[]
+  comments          Comment[]
+  likes             Like[]
+
+  following         Follows[]      @relation("follower")
+  followers         Follows[]      @relation("following")
+
+  watchlist         Watchlist[]
+  reviews           Review[]
+
+  conversations     ConversationMember[]
+  sentMessages      Message[]
+  notifications     Notification[]
+}
+
+// --- CHAT & MESSAGING ---
+
+enum NotificationType {
+  LIKE
+  COMMENT
+  FOLLOW
+  MESSAGE
+  NEW_EPISODE
+}
+
+model Conversation {
+  id        String               @id @default(uuid())
+  name      String?
+  isGroup   Boolean              @default(false)
+  createdAt DateTime             @default(now())
+
+  members   ConversationMember[]
+  messages  Message[]
+}
+
+model ConversationMember {
+  conversationId String
+  userId         String
+  joinedAt       DateTime @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String
+  isSpoiler      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  userId      String
+  type        NotificationType
+  message     String
+  referenceId String?
+  isRead      Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String  
+  refreshToken String   @unique
+  userAgent    String?
+  expiresAt    DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model OAuthAccount {
+  id             String @id @default(uuid())
+  provider       String
+  providerUserId String
+  userId         String  
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+// --- ANIME CONTENT ---
+
+model Anime {
+  id          String         @id @default(uuid())
+  title       String
+  synopsis    String?
+  type        AnimeType
+  status      AnimeStatus
+  coverImage  String?
+  rating      Float          @default(0.0)
+
+  episodes    Episode[]
+  genres      Genre[]
+  watchlist   Watchlist[]
+  reviews     Review[]
+}
+
+model Episode {
+  id          String   @id @default(uuid())
+  animeId     String   
+  episodeNum  Int
+  title       String?
+  airDate     DateTime?
+  anime       Anime    @relation(fields: [animeId], references: [id], onDelete: Cascade)
+
+  @@index([animeId, episodeNum])
+}
+
+model Genre {
+  id     String   @id @default(uuid())
+  name   String   @unique
+  anime  Anime[]
+}
+
+model Watchlist {
+  userId    String  
+  animeId   String   
+  status    WatchlistStatus
+  progress  Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id])
+  anime     Anime    @relation(fields: [animeId], references: [id])
+
+  @@id([userId, animeId])
+  @@index([userId, animeId])
+}
+
+// --- SOCIAL MEDIA FEATURES ---
+
+model Post {
+  id        String    @id @default(uuid())
+  content   String?
+  userId    String    
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  media     Media[]
+  comments  Comment[]
+  likes     Like[]
+
+  @@index([userId])
+}
+
+model Media {
+  id        String    @id @default(uuid())
+  url       String
+  type      MediaType
+  postId    String?   
+  storyId   String?   
+
+  post      Post?     @relation(fields: [postId], references: [id])
+  story     Story?    @relation(fields: [storyId], references: [id])
+
+  @@index([postId, storyId])
+}
+
+model Story {
+  id        String    @id @default(uuid())
+  userId    String   
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id])
+  media     Media[]
+
+  @@index([userId])
+}
+
+model Comment {
+  id        String    @id @default(uuid())
+  content   String
+  isSpoiler Boolean   @default(false)
+  userId    String  
+  postId    String  
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([userId, postId])
+}
+
+model Like {
+  userId    String  
+  postId    String  
+  user      User     @relation(fields: [userId], references: [id])
+  post      Post     @relation(fields: [postId], references: [id])
+
+  @@id([userId, postId])
+  @@index([userId, postId])
+}
+
+model Review {
+  userId    String  
+  animeId   String  
+  score     Int
+  content   String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+  anime     Anime    @relation(fields: [animeId], references: [id])
+
+  @@id([userId, animeId])
+  @@index([userId, animeId])
+}
+
+model Follows {
+  followerId  String
+  followingId String
+  follower    User     @relation("follower", fields: [followerId], references: [id])
+  following   User     @relation("following", fields: [followingId], references: [id])
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+}
+
+// --- BILLING & SUBSCRIPTIONS ---
+
+model Plan {
+  id            String         @id @default(uuid()) // switched to uuid for consistency
+  name          String
+  price         Int
+  interval      String
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  planId               String   
+  status               SubscriptionStatus
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean  @default(false)
+  stripeSubscriptionId String   @unique
+
+  user User @relation(fields: [userId], references: [id])
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([userId, planId])
+}
